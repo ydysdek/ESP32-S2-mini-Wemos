@@ -1,23 +1,35 @@
-from machine import Pin, SPI
+from machine import Pin, SPI, PWM
 import st7789
 import time
 
-spi = SPI(
+BLK = 8
+RES = 7
+CS  = 5
+DC  = 6
+
+spi_tft = SPI(
     1,
-    baudrate=40_000_000,
+    baudrate=30_000_000,
     polarity=0,
     phase=0,
     sck=Pin(36),
     mosi=Pin(35)
 )
 
+# backlight
+bl = PWM(Pin(BLK))
+bl.freq(1000)
+bl.duty_u16(65535)
+
 tft = st7789.ST7789(
-    spi,
-    320,
+    spi_tft,
     240,
-    reset=Pin(7, Pin.OUT),
-    cs=Pin(5, Pin.OUT),
-    dc=Pin(6, Pin.OUT)
+    320,
+    reset=Pin(RES, Pin.OUT),
+    cs=Pin(CS, Pin.OUT),
+    dc=Pin(DC, Pin.OUT),
+    xstart=0,
+    ystart=0
 )
 
 tft.init()
