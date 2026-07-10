@@ -4,10 +4,17 @@ import time
 # =========================
 # PINY (ESP32-S2 WEMOS)
 # =========================
-PIN_SCK  = 36
-PIN_MOSI = 35
-PIN_MISO = 37
+PIN_SCK  = 36	# SPI2
+PIN_MOSI = 35	# SPI2
+PIN_MISO = 37	# SPI2
 PIN_CS   = 34
+PIN_LED  = 15
+PIN_GDO0 = 4
+
+PIN_SCK  = 7	# SPI1
+PIN_MOSI = 11	# SPI1
+PIN_MISO = 9	# SPI1
+PIN_CS   = 16
 PIN_LED  = 15
 PIN_GDO0 = 4
 
