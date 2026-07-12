@@ -24,6 +24,45 @@ BOARDS = {
         "led": 15,
     },
 
+    "esp32_s2_mini": {
+        "display": {
+            "spi_id": 2,
+            "sck": 36,
+            "mosi": 35,
+            "miso": None,
+            "cs": 5,
+            "dc": 6,
+            "rst":None,
+            "blk": 8,
+            "rotation": 0,
+            "baudrate": 20000000,
+        },
+        "cc1101": {
+            "spi_id": 1,
+            "sck": 7,
+            "mosi": 11,
+            "miso": 9,
+            "cs": 16,
+            "gdo0": 4,
+            "gdo2": 13,
+        },
+        "led": 15,
+    },
+
+    "esp32_s2_mini_legacy": {	# for first legacy transmitter
+        "display": None,
+        "cc1101": {
+            "spi_id": 1,
+            "sck": 36,
+            "mosi": 35,
+            "miso": 37,
+            "cs": 34,
+            "gdo0": 4,
+            "gdo2": 13,
+        },
+        "led": 15,
+    },
+
     "esp32_s3": {
         "display": {
             "spi_id": 1,
