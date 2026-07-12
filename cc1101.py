@@ -5,11 +5,12 @@ import time
 class CC1101:
     SRES  = 0x30
     SRX   = 0x34
+    STX = 0x35
     SIDLE = 0x36
     SFRX  = 0x3A
     SFTX  = 0x3B
-
     RXFIFO = 0x3F
+    TXFIFO = 0x3F
     LQI = 0x33
     RSSI = 0x34
     MARCSTATE = 0x35
@@ -216,3 +217,18 @@ class CC1101:
             hex_part = " ".join("{:02X}".format(b) for b in chunk)
             ascii_part = "".join(chr(b) if 32 <= b <= 126 else "." for b in chunk)
             print("{:04X}  {:<48}  {}".format(i, hex_part, ascii_part))
+            
+    def write_burst(self, addr, data):
+        self.select()
+        self.spi.write(bytes([addr | 0x40]))
+        self.spi.write(data)
+        self.deselect()
+
+    def transmit(self, data):
+        self.strobe(self.SIDLE)
+        self.strobe(self.SFTX)
+        time.sleep_ms(1)
+
+        self.write_burst(self.TXFIFO, bytes([len(data)]) + data)
+
+        self.strobe(self.STX)
