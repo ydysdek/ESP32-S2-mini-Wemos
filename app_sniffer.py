@@ -18,10 +18,11 @@ def panic_blink_bl(bl):
         
         
 def run(board):
-    count = 0
-    last_lcd = ticks_ms()
-    pending_text = None
-    pending_rssi = None
+    print("RUN BOARD DISPLAY:", board["display"])
+    print("RUN BOARD CC1101:", board["cc1101"])
+    
+    if board.get("display") is None:
+        raise ValueError("Sniffer needs a board with display config")
 
     bl = Pin(8, Pin.OUT)
 
@@ -46,39 +47,40 @@ def run(board):
         panic_blink_bl(bl)
 
     radio.enter_rx()
+    count = 0
+    last_packet = ticks_ms()
+    last_recover = ticks_ms()
+    wdg_count = 0
     
     while True:
         pkt = radio.read_packet()
 
         if pkt:
             count += 1
+            last_packet = ticks_ms()
             rssi = int(pkt["rssi"])
 
+            print("RX", count, "RSSI", rssi)
+
+            ui.set_count(count)
+            ui.set_rssi(rssi)
+            #ui.add_log("DIRECT RX {}".format(count))
             frame = parse_frame(pkt["data"])
 
             if frame:
-                text = format_frame(frame)
+                ui.add_log(format_frame(frame))
             else:
-                text = ui.format_packet("RX", count, rssi, pkt["data"], max_bytes=8)
-
-            pending_text = text
-            pending_rssi = rssi
-
-            # krótki terminal, bez hexdumpa
-            print("RX", count, "RSSI", rssi)
+                ui.add_log(ui.format_packet("RX", count, rssi, pkt["data"], max_bytes=8))
 
         now = ticks_ms()
 
-        if pending_text and ticks_diff(now, last_lcd) > 200:
-            ui.set_count(count)
+        if ticks_diff(now, last_packet) > 3000 and ticks_diff(now, last_recover) > 3000:
+            wdg_count += 1
+            print("RX watchdog reset", wdg_count)
+            ui.add_log("WDG reset {}".format(wdg_count))
+            radio.reset_rx()
+            last_recover = now
+            last_packet = now
 
-            if pending_rssi is not None:
-                ui.set_rssi(pending_rssi)
+        sleep_ms(5)
 
-            ui.add_log(pending_text)
-
-            pending_text = None
-            pending_rssi = None
-            last_lcd = now
-
-        sleep_ms(1)
