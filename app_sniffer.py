@@ -76,11 +76,14 @@ def run(board):
 
         if ticks_diff(now, last_packet) > 3000 and ticks_diff(now, last_recover) > 3000:
             wdg_count += 1
-            print("RX watchdog reset", wdg_count)
-            ui.add_log("WDG reset {}".format(wdg_count))
-            radio.reset_rx()
+            state, rxbytes = radio.recover_rx()
+            reason = radio.marcstate_name(state)
+
+            print("RX watchdog reset", wdg_count, "state", reason, "rxbytes", rxbytes)
+            ui.add_log("WDG {} {} rb={}".format(wdg_count, reason, rxbytes))
+
             last_recover = now
             last_packet = now
-
+            
         sleep_ms(5)
 
