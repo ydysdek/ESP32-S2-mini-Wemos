@@ -1,14 +1,20 @@
-from settings import APP
+from boards import BOARDS
+from settings import APP, BOARD
 
-if APP == "app_sniffer":
+board = BOARDS[BOARD]
+
+if APP == "sniffer":
     from app_sniffer import run
-elif APP == "app_tx_ccp":
+elif APP == "tx_ccp":
     from app_tx_ccp import run
-elif APP == "app_tx_legacy":
+elif APP == "tx_legacy":
     from app_tx_legacy import run
-elif APP == "app_bridge":
+elif APP == "bridge":
     from app_bridge import run
 else:
     raise ValueError("Unknown APP: {}".format(APP))
 
-run()
+print("APP:", APP)
+print("BOARD:", BOARD)
+
+run(board)
