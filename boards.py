@@ -22,6 +22,7 @@ BOARDS = {
             "gdo2": 13,
         },
         "led": 15,
+        "sensors": {}
     },
 
     "esp32_s2_mini": {
@@ -47,6 +48,7 @@ BOARDS = {
             "gdo2": 13,
         },
         "led": 15,
+        "sensors": {}
     },
 
     "esp32_s2_mini_legacy": {	# for first legacy transmitter
@@ -61,6 +63,12 @@ BOARDS = {
             "gdo2": 13,
         },
         "led": 15,
+        "sensors": {
+            "ds18b20": 18,
+            "battery_adc": 17,
+            "battery_k": 0.67,
+            "battery_cal": 1.0,
+        },
     },
 
     "esp32_s3": {
@@ -85,6 +93,7 @@ BOARDS = {
             "gdo2": 9,
         },
         "led": 15,
+        "sensors": {}
     },
 
     "esp32_c6": {
@@ -109,5 +118,6 @@ BOARDS = {
             "gdo2": 9,
         },
         "led": 15,
+        "sensors": {}
     },
 }

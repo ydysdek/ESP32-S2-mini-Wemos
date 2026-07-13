@@ -99,7 +99,7 @@ def format_frame(frame):
     if frame is None:
         return "INVALID"
 
-    return "{} s={} {:04X}>{:04X} n={}".format(
+    return "{} seq={} src={:04X} dst={:04X} len={}".format(
         msg_name(frame["type"]),
         frame["seq"],
         frame["src"],

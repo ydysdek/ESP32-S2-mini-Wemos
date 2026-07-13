@@ -1,14 +1,11 @@
 from machine import Pin
 from time import sleep_ms
 
-from boards import BOARDS
+from settings import NODE_ID, TX_INTERVAL_MS
 from cc1101 import CC1101
 from cc1101_config import CC1101_CONFIG
-from ccp import make_frame, MSG_HELLO, BROADCAST
-
-# 1 mignięcie po utworzeniu radia,
-# 2 mignięcia po poprawnym verify,
-# krótkie mignięcie przy każdej transmisji.
+from ccp import make_frame, MSG_HELLO, MSG_SENSOR, BROADCAST
+from sensors import DS18B20Sensor, BatteryADC
 
 class Led:
     def __init__(self, pin, active_high=True):
@@ -28,14 +25,33 @@ class Led:
         self.off()
 
 
-def run():
+def panic_blink(led):
+    while True:
+        led.blink(60)
+        sleep_ms(60)
 
-    BOARD = BOARDS["esp32_s2_mini"]
-    NODE_ID = 0x2001
 
-    led = Led(BOARD["led"], active_high=True)
+def run(board):
+    led = Led(board["led"], active_high=True)
 
-    radio = CC1101(**BOARD["cc1101"], debug=False)
+    sensors = board.get("sensors", {})
+    print(sensors)
+
+    temp = None
+    battery = None
+    if temp and not temp.available():
+        print("DS18B20 not found")
+    
+    if sensors.get("ds18b20") is not None:
+        temp = DS18B20Sensor(sensors["ds18b20"])
+
+    if sensors.get("battery_adc") is not None:
+        battery = BatteryADC(
+            sensors["battery_adc"],
+            sensors.get("battery_k", 0.67)
+        )
+    
+    radio = CC1101(**board["cc1101"], debug=False)
 
     led.blink(100)
 
@@ -45,18 +61,30 @@ def run():
     errors = radio.verify(CC1101_CONFIG)
     print("VERIFY ERRORS:", errors)
 
-    if errors == 0:
-        led.blink(100)
-        sleep_ms(100)
-        led.blink(100)
+    if errors:
+        panic_blink(led)
 
     seq = 0
 
     while True:
-        payload = "HELLO {}".format(seq).encode()
+        #payload = "HELLO {}".format(seq).encode()
+        t = temp.read_c() if temp else None
+        v = battery.read_v() if battery else None
 
+        if t is None:
+            t_text = "NA"
+        else:
+            t_text = "{:.1f}C".format(t)
+
+        if v is None:
+            v_text = "NA"
+        else:
+            v_text = "{:.2f}V".format(v)
+
+        payload = "T={} V={}".format(t_text, v_text).encode()
+        
         frame = make_frame(
-            MSG_HELLO,
+            MSG_SENSOR,
             0,
             seq,
             NODE_ID,
@@ -70,7 +98,4 @@ def run():
         print("TX seq={}, len={}".format(seq, len(frame)))
 
         seq = (seq + 1) & 0xFF
-        sleep_ms(1370)
-
-
-run()
+        sleep_ms(TX_INTERVAL_MS)
