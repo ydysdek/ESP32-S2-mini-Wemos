@@ -3,6 +3,11 @@ from settings import APP, BOARD
 
 board = BOARDS[BOARD]
 
+if BOARD not in BOARDS:
+    print("Unknown BOARD:", BOARD)
+    print("Available:", list(BOARDS.keys()))
+    raise SystemExit
+
 if APP == "sniffer":
     from app_sniffer import run
 elif APP == "tx_ccp":
