@@ -26,9 +26,10 @@ class DS18B20Sensor:
         return self.bus.read_temp(self.rom)
 
 class BatteryADC:
-    def __init__(self, pin, divider_k=0.67):
+    def __init__(self, pin, divider_k=0.67, cal=1.0):
         self.adc = ADC(Pin(pin))
         self.divider_k = divider_k
+        self.cal = cal
 
         try:
             self.adc.atten(ADC.ATTN_11DB)
@@ -36,8 +37,13 @@ class BatteryADC:
             pass
 
     def read_v(self):
-        raw = self.adc.read_u16()
+        total = 0
 
-        # MicroPython ADC read_u16: 0..65535. Przyjmujemy referencję ok. 3.3 V.
-        vadc = raw * 3.3 / 65535
-        return vadc / self.divider_k
+        for _ in range(16):
+            total += self.adc.read_uv()
+            sleep_ms(2)
+
+        uv = total // 16
+        vadc = uv / 1000000
+
+        return vadc / self.divider_k * self.cal

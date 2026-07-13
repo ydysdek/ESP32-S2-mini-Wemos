@@ -67,7 +67,7 @@ BOARDS = {
             "ds18b20": 18,
             "battery_adc": 17,
             "battery_k": 0.67,
-            "battery_cal": 1.0,
+            "battery_cal": 1.015,
         },
     },
 

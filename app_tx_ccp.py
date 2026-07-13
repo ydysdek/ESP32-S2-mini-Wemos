@@ -49,7 +49,8 @@ def run(board):
     if sensors.get("battery_adc") is not None:
         battery = BatteryADC(
             sensors["battery_adc"],
-            sensors.get("battery_k", 0.67)
+            sensors.get("battery_k", 0.67),
+            sensors.get("battery_cal", 1.0)
         )
     
     radio = CC1101(**board["cc1101"], debug=False)
