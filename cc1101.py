@@ -16,6 +16,11 @@ class CC1101:
     MARCSTATE = 0x35
     PKTSTATUS = 0x38
     RXBYTES = 0x3B
+    
+    MARCSTATE_IDLE = 0x01
+    MARCSTATE_RX = 0x0D
+    MARCSTATE_RXFIFO_OVERFLOW = 0x11
+    MARCSTATE_TXFIFO_UNDERFLOW = 0x16
 
     def __init__(self, spi_id, sck, mosi, miso, cs, gdo0=None, gdo2=None, baudrate=1000000, debug=False):
         self.debug = debug
@@ -40,6 +45,10 @@ class CC1101:
 
         if self.gdo0 is not None:
             self.gdo0.irq(trigger=Pin.IRQ_RISING, handler=self._gdo0_irq)
+            
+    def log(self, msg=""):
+        if self.debug:
+            print(msg)
 
     def _gdo0_irq(self, pin):
         self.packet_ready = True
@@ -150,32 +159,30 @@ class CC1101:
 
         self.packet_ready = False
 
+        time.sleep_ms(2)
         rxbytes = self.rxbytes()
 
-        self.log("")
-        self.log("packet_ready = True, rxbytes = {}, gdo0_irqs = {}".format(
-            rxbytes,
-            self.irq_count
-        ))
-        self.log("marcstate = {}".format(hex(self.marcstate())))
-        self.log("pktstatus = {}".format(hex(self.pktstatus())))
+        if rxbytes <= 0:
+            return None
 
-        if self.gdo0 is not None:
-            self.log("GDO0 = {}".format(self.gdo0.value()))
+        rxbytes &= 0x7F
 
         if rxbytes < 3:
-            self.log("RX FIFO empty/too short, reset RX")
             self.reset_rx()
             return None
 
+        # dalej jak wcześniej...
+
         fifo = self.burst_read(self.RXFIFO, rxbytes)
-        self.log("len(fifo) = {}".format(len(fifo)))
+
+        if len(fifo) < 3:
+            self.reset_rx()
+            return None
 
         length = fifo[0]
         needed = 1 + length + 2
 
-        if len(fifo) < needed:
-            self.log("FIFO too short: len {}, needed {}".format(len(fifo), needed))
+        if length == 0 or needed > len(fifo):
             self.reset_rx()
             return None
 
@@ -192,22 +199,9 @@ class CC1101:
             "irq_count": self.irq_count,
         }
 
-        self.log("--- Pakiet ---")
-        self.log("Dlugosc: {} bajtow, RSSI: {:.1f} dBm, LQI: {}, CRC: {}".format(
-            len(data),
-            packet["rssi"],
-            packet["lqi"],
-            packet["crc_ok"]
-        ))
-        self.hexdump(data)
-
         self.reset_rx()
-        return packet
+        return packet   
 
-    def log(self, msg=""):
-        if self.debug:
-            print(msg)
-            
     def hexdump(self, data):
         if not self.debug:
             return
@@ -232,3 +226,36 @@ class CC1101:
         self.write_burst(self.TXFIFO, bytes([len(data)]) + data)
 
         self.strobe(self.STX)
+
+    def service_rx(self):
+        state = self.marcstate()
+
+        if state == self.MARCSTATE_RX:
+            return
+
+        if state == self.MARCSTATE_RXFIFO_OVERFLOW:
+            self.log("RX FIFO OVERFLOW")
+            self.reset_rx()
+            return
+
+        if state == self.MARCSTATE_TXFIFO_UNDERFLOW:
+            self.log("TX FIFO UNDERFLOW")
+            self.reset_rx()
+            return
+
+        # Jeśli radio uciekło z RX, przywróć RX.
+        self.log("MARCSTATE {}, reset RX".format(hex(state)))
+        self.reset_rx()
+
+    def recover_rx(self):
+        state = self.marcstate()
+        rxbytes = self.rxbytes()
+        
+        self.reset_rx()
+        
+        return state, rxbytes
+
+    def marcstate_name(self, state):
+        if state == self.MARCSTATE_IDLE:
+            return "IDLE"
+        return hex(state)
