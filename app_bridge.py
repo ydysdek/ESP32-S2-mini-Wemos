@@ -6,8 +6,76 @@ try:
     import ujson as json
 except ImportError:
     import json
+    
+import settings
+import network
+from umqtt.simple import MQTTClient
 
 
+BRIDGE_SERIAL = getattr(settings, "BRIDGE_SERIAL", True)
+BRIDGE_MQTT = getattr(settings, "BRIDGE_MQTT", False)
+
+WIFI_SSID = getattr(settings, "WIFI_SSID", "")
+WIFI_PASSWORD = getattr(settings, "WIFI_PASSWORD", "")
+
+MQTT_HOST = getattr(settings, "MQTT_HOST", "")
+MQTT_PORT = getattr(settings, "MQTT_PORT", 1883)
+MQTT_USER = getattr(settings, "MQTT_USER", None)
+MQTT_PASSWORD = getattr(settings, "MQTT_PASSWORD", None)
+MQTT_CLIENT_ID = getattr(settings, "MQTT_CLIENT_ID", "cc1101-bridge")
+mqtt_topic_base = getattr(settings, "MQTT_TOPIC_BASE", "cc1101")
+
+def to_bytes(value):
+    if value is None:
+        return None
+    if isinstance(value, bytes):
+        return value
+    return str(value).encode()
+
+
+def wifi_connect(ssid, password, timeout_ms=15000):
+    wlan = network.WLAN(network.STA_IF)
+    wlan.active(True)
+
+    if not wlan.isconnected():
+        wlan.connect(ssid, password)
+
+        waited = 0
+        while not wlan.isconnected() and waited < timeout_ms:
+            sleep_ms(250)
+            waited += 250
+
+    if not wlan.isconnected():
+        raise RuntimeError("WiFi connect failed")
+
+    print("WIFI", wlan.ifconfig())
+    return wlan
+
+
+class BridgeOutput:
+    def __init__(self, serial=True, mqtt_client=None, topic_base="cc1101"):
+        self.serial = serial
+        self.mqtt = mqtt_client
+        self.topic_base = topic_base
+        self.mqtt_ok = mqtt_client is not None
+
+    def emit(self, obj):
+        payload = json.dumps(obj)
+
+        if self.serial:
+            print(payload)
+
+        if self.mqtt and self.mqtt_ok:
+            topic = "{}/{}".format(self.topic_base, obj["kind"])
+
+            try:
+                self.mqtt.publish(to_bytes(topic), to_bytes(payload))
+                #print("MQTT PUB", topic)
+            except Exception as e:
+                self.mqtt_ok = False
+                print("MQTT publish failed:", e)
+                
+                
 def hex_text(data):
     return " ".join("{:02X}".format(b) for b in data)
 
@@ -20,10 +88,10 @@ def emit(obj):
     print(json.dumps(obj))
 
 
-def emit_ccp(count, pkt, frame):
+def emit_ccp(out, count, pkt, frame):
     payload = payload_text(frame["payload"])
 
-    emit({
+    out.emit({
         "kind": "ccp",
         "ts_ms": ticks_ms(),
         "count": count,
@@ -45,8 +113,8 @@ def emit_ccp(count, pkt, frame):
     })
 
 
-def emit_raw(count, pkt):
-    emit({
+def emit_raw(out, count, pkt):
+    out.emit({
         "kind": "raw",
         "ts_ms": ticks_ms(),
         "count": count,
@@ -63,8 +131,8 @@ def emit_raw(count, pkt):
     })
 
 
-def emit_wdg(wdg_count, state, rxbytes):
-    emit({
+def emit_wdg(out, wdg_count, state, rxbytes):
+    out.emit({
         "kind": "watchdog",
         "ts_ms": ticks_ms(),
         "count": wdg_count,
@@ -76,8 +144,41 @@ def emit_wdg(wdg_count, state, rxbytes):
     
     
 def run(board):
-    radio = CC1101(**board["cc1101"], debug=False)
+    bridge_serial = getattr(settings, "BRIDGE_SERIAL", True)
+    bridge_mqtt = getattr(settings, "BRIDGE_MQTT", False)
+    mqtt_topic_base = getattr(settings, "MQTT_TOPIC_BASE", "cc1101")
+    mqtt_client = None
 
+    print("APP:", APP)
+    print("BOARD:", BOARD)
+    print("MQTT connected")
+    print("BRIDGE_SERIAL:", bridge_serial)
+    print("BRIDGE_MQTT:", bridge_mqtt)
+
+    if bridge_mqtt:
+        wifi_connect(
+            getattr(settings, "WIFI_SSID", ""),
+            getattr(settings, "WIFI_PASSWORD", "")
+        )
+
+        mqtt_client = MQTTClient(
+            to_bytes(getattr(settings, "MQTT_CLIENT_ID", "cc1101-bridge")),
+            getattr(settings, "MQTT_HOST", ""),
+            port=getattr(settings, "MQTT_PORT", 1883),
+            user=to_bytes(getattr(settings, "MQTT_USER", None)),
+            password=to_bytes(getattr(settings, "MQTT_PASSWORD", None))
+        )
+
+        mqtt_client.connect()
+        print("MQTT connected")
+    
+    out = BridgeOutput(
+        serial=bridge_serial,
+        mqtt_client=mqtt_client,
+        topic_base=mqtt_topic_base
+    )
+
+    radio = CC1101(**board["cc1101"], debug=False)
     radio.reset()
     radio.configure(CC1101_CONFIG)
 
@@ -97,7 +198,7 @@ def run(board):
     wdg_count = 0
 
     #print("BRIDGE READY")
-    emit({
+    out.emit({
         "kind": "status",
         "ts_ms": ticks_ms(),
         "status": {
@@ -105,9 +206,10 @@ def run(board):
             "board": "esp32_c6",
             "ready": True,
             "verify_errors": errors,
-        },
-    })
-
+            "mqtt": bridge_mqtt,
+            "topic_base": mqtt_topic_base,
+            },
+        })
     while True:
         pkt = radio.read_packet()
 
@@ -148,9 +250,9 @@ def run(board):
                 ))
                 '''
             if frame:
-                emit_ccp(count, pkt, frame)
+                emit_ccp(out, count, pkt, frame)
             else:
-                emit_raw(count, pkt)
+                emit_raw(out, count, pkt)
                 
         now = ticks_ms()
         '''
@@ -173,7 +275,7 @@ def run(board):
             state, rxbytes = radio.recover_rx()
             reason = radio.marcstate_name(state)
 
-            emit_wdg(wdg_count, reason, rxbytes)
+            emit_wdg(out, wdg_count, reason, rxbytes)
 
             last_recover = now
             last_packet = now
