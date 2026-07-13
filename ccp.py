@@ -95,14 +95,31 @@ def msg_name(msg_type):
     return names.get(msg_type, "0x{:02X}".format(msg_type))
 
 
+def payload_text(payload):
+    chars = []
+
+    for b in payload:
+        if 32 <= b <= 126:
+            chars.append(chr(b))
+        else:
+            chars.append(".")
+
+    return "".join(chars)
+
+
 def format_frame(frame):
     if frame is None:
         return "INVALID"
 
-    return "{} seq={} src={:04X} dst={:04X} len={}".format(
+    text = "{} s={} {:04X}>{:04X} n={}".format(
         msg_name(frame["type"]),
         frame["seq"],
         frame["src"],
         frame["dst"],
         len(frame["payload"])
     )
+
+    if frame["payload"]:
+        text += " " + payload_text(frame["payload"])
+
+    return text

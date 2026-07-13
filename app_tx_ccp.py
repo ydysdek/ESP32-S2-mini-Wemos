@@ -39,11 +39,12 @@ def run(board):
 
     temp = None
     battery = None
-    if temp and not temp.available():
-        print("DS18B20 not found")
-    
+
     if sensors.get("ds18b20") is not None:
         temp = DS18B20Sensor(sensors["ds18b20"])
+
+        if not temp.available():
+            print("DS18B20 not found")
 
     if sensors.get("battery_adc") is not None:
         battery = BatteryADC(
@@ -95,7 +96,12 @@ def run(board):
         radio.transmit(frame)
         led.blink(40)
 
-        print("TX seq={}, len={}".format(seq, len(frame)))
-
+        #print("TX seq={}, len={}, {}".format(seq, len(frame)), frame)
+        print("TX seq={}, len={}, {}".format(
+        seq,
+        len(frame),
+        payload.decode()
+        ))
+        
         seq = (seq + 1) & 0xFF
         sleep_ms(TX_INTERVAL_MS)
